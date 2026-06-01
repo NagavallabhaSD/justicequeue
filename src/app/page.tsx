@@ -4,7 +4,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Play, Pause, Gavel, AlertTriangle, ShieldCheck, Clock, 
-  Layers, Terminal, Cpu, BarChart2, BookOpen, LayoutDashboard, Filter, MapPin, Activity
+  Layers, Terminal, Cpu, BarChart2, BookOpen, LayoutDashboard, Filter, MapPin
 } from 'lucide-react';
 
 // ============================================================================
@@ -70,8 +70,11 @@ function topologicalSortDFS(casesList: any[]): any[] {
 // ALGORITHM 3: TRANSFORM AND CONQUER - Binary Max-Heap Structure
 // ============================================================================
 class UIMaxHeap {
+  // FIXED: Explicit type initialization out of constructor scope for strict Vercel builds
   public heap: any[] = [];
+
   constructor(items: any[] = []) {
+    this.heap = [];
     items.forEach(item => this.insert(item));
   }
 
@@ -147,12 +150,8 @@ function branchAndBoundAssign(caseItem: any, judges: Record<string, number>): { 
   return { assignedJudge: optimalJudge, optimalCost: minCost };
 }
 
-// ============================================================================
-// MAIN NEXT.JS SYSTEM LAYOUT INTERFACE
-// ============================================================================
 export default function CompleteSystem() {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'analytics' | 'blueprint'>('dashboard');
-  
   const [heapInstance, setHeapInstance] = useState(new UIMaxHeap());
   const [queue, setQueue] = useState<any[]>([]);
   const [processedCases, setProcessedCases] = useState<any[]>([]);
@@ -191,6 +190,9 @@ export default function CompleteSystem() {
         }
       } catch (err) {
         console.error(err);
+        // Fallback for compilation environment instances without database connections
+        const fallbackHeap = new UIMaxHeap([]);
+        setHeapInstance(fallbackHeap);
       } finally {
         setLoading(false);
       }
@@ -223,7 +225,7 @@ export default function CompleteSystem() {
 
       heapInstance.insert(mockCase);
       setQueue([...heapInstance.heap]);
-      if (found) addLog(`INPUT ENHANCEMENT: Horspool matched pattern "HOMICIDE" via Shift Table. Priority score spiked.`);
+      if (found) addLog(`INPUT ENHANCEMENT: Horspool matched pattern "HOMICIDE" via Shift Table.`);
     }, 4500);
     return () => clearInterval(interval);
   }, [isSimulating, loading, heapInstance]);
@@ -247,7 +249,7 @@ export default function CompleteSystem() {
         ...prev.slice(0, 4)
       ]);
       setQueue([...heapInstance.heap]);
-      addLog(`BRANCH & BOUND: Case assigned to ${assignment.assignedJudge} (Matrix bound minimized).`);
+      addLog(`BRANCH & BOUND: Case assigned to ${assignment.assignedJudge}.`);
     }
   };
 
@@ -259,21 +261,10 @@ export default function CompleteSystem() {
     return matchesState && matchesUrgency;
   });
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center font-mono">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-indigo-500 mx-auto mb-4"></div>
-          <p className="text-xs text-slate-400">CONNECTING TO NATIONAL CLOUD INFRASTRUCTURE...</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
       
-      {/* HEADER NAVIGATION */}
+      {/* HEADER NAV */}
       <nav className="bg-slate-900 border-b border-slate-800 px-6 py-4 flex flex-col sm:flex-row justify-between items-center gap-4 shadow-md z-10">
         <div className="flex items-center gap-3">
           <div className="bg-gradient-to-tr from-indigo-600 to-violet-500 p-2 rounded-xl text-white">
@@ -292,7 +283,7 @@ export default function CompleteSystem() {
         </div>
       </nav>
 
-      {/* TAB VIEW 1: LIVE TERMINAL */}
+      {/* VIEW 1: LIVE TERMINAL */}
       {activeTab === 'dashboard' && (
         <div className="p-6 flex-1 grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-3 bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-wrap justify-between items-center gap-4">
@@ -324,7 +315,7 @@ export default function CompleteSystem() {
               <h2 className="text-xs font-black uppercase tracking-wider text-slate-300 flex items-center gap-2"><Layers size={14} className="text-indigo-400" /> Heap Prioritization Matrix</h2>
               <span className="text-[10px] bg-slate-950 text-indigo-400 border border-slate-800 px-2 py-0.5 rounded-md font-mono">{filteredQueue.length} Active Rows</span>
             </div>
-            <div className="space-y-2 overflow-y-auto flex-1 pr-1 custom-scrollbar">
+            <div className="space-y-2 overflow-y-auto flex-1 pr-1">
               {filteredQueue.map((item, index) => (
                 <div key={item.ddl_case_id + index} className={`p-3 rounded-xl border flex items-center justify-between ${index === 0 ? 'bg-gradient-to-r from-indigo-950/40 to-slate-900/40 border-indigo-500/50' : 'bg-slate-950/40 border-slate-800/60'}`}>
                   <div>
@@ -353,68 +344,105 @@ export default function CompleteSystem() {
               {processedCases.map((item, i) => (
                 <div key={i} className="bg-slate-950/60 border border-slate-800 p-3 rounded-xl">
                   <p className="text-xs font-mono font-bold text-slate-200">{item.ddl_case_id}</p>
-                  <div className="mt-2 text-[10px] bg-indigo-500/10 border border-indigo-500/20 rounded-lg px-2.5 py-1 text-indigo-400 font-mono">Assigned $\rightarrow$ {item.assignedJudge}</div>
+                  <div className="mt-2 text-[10px] bg-indigo-500/10 border border-indigo-500/20 rounded-lg px-2.5 py-1 text-indigo-400 font-mono">Assigned &rarr; {item.assignedJudge}</div>
                 </div>
               ))}
-            </div>
-            <div className="bg-slate-950 rounded-xl border border-slate-800 p-3 font-mono text-[10px]">
-              <p className="text-slate-400 font-bold border-b border-slate-800 pb-1 mb-1.5 flex items-center gap-1"><Terminal size={10} className="text-indigo-400" /> Live Execution Trace</p>
-              <div className="space-y-1 h-20 overflow-y-auto text-slate-300">
-                {algoLogs.map((l, i) => <div key={i} className="truncate"><span className="text-indigo-500">❯</span> {l}</div>)}
-              </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* TAB VIEW 2: VISUAL ANALYTICS */}
+      {/* VIEW 2: VISUAL ANALYTICS - FIXED GRAPHS */}
       {activeTab === 'analytics' && (
         <div className="p-6 flex-1 grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 flex flex-col justify-between">
+          
+          {/* FIXED BAR GRAPH: JUDGE ALLOCATION */}
+          <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 flex flex-col justify-between">
             <div>
-              <h2 className="text-sm font-black uppercase tracking-wider text-slate-200 flex items-center gap-2 mb-1"><BarChart2 size={16} className="text-indigo-400" /> Branch & Bound Matrix Load</h2>
-              <p className="text-xs text-slate-400 font-mono">Real-time optimization balancing curves across active judges</p>
+              <h2 className="text-sm font-black uppercase tracking-wider text-slate-200 flex items-center gap-2 mb-1">
+                <BarChart2 size={16} className="text-indigo-400" /> Branch & Bound Matrix Load
+              </h2>
+              <p className="text-xs text-slate-400 font-mono mb-4">Real-time optimization balancing curves across active judges</p>
             </div>
-            <div className="flex items-end justify-around h-56 pt-6 border-b border-slate-800 font-mono">
+
+            {/* Robust graph layout using explicit bottom-anchored flex columns */}
+            <div className="relative flex items-end justify-around h-64 w-full bg-slate-950/50 rounded-xl border border-slate-800/80 p-4 font-mono">
               {Object.keys(judgeWorkloads).map(judge => {
-                const calculatedHeight = Math.min((judgeWorkloads[judge] / 300) * 100, 100);
+                const workloadValue = judgeWorkloads[judge];
+                // Max-scale calculations against 300 to dynamic percentage metrics
+                const heightPercentage = Math.min((workloadValue / 300) * 100, 100);
+
                 return (
-                  <div key={judge} className="flex flex-col items-center w-16 group">
-                    <span className="text-[10px] text-indigo-400 font-bold mb-1">{judgeWorkloads[judge]}</span>
-                    <div style={{ height: `${calculatedHeight}%` }} className="w-8 bg-gradient-to-t from-indigo-600 to-violet-500 rounded-t-md transition-all duration-500"></div>
+                  <div key={judge} className="flex flex-col items-center justify-end h-full w-16 group z-10">
+                    {/* Value text display */}
+                    <span className="text-[11px] font-bold text-indigo-400 mb-2 bg-slate-900 border border-slate-800 px-1.5 py-0.5 rounded">
+                      {workloadValue}
+                    </span>
+                    {/* The Visual Bar Graphic Container */}
+                    <div className="w-10 bg-slate-900/80 border border-slate-800 rounded-t-lg overflow-hidden flex items-end h-full min-h-[4px]">
+                      <div 
+                        style={{ height: `${heightPercentage}%` }} 
+                        className="w-full bg-gradient-to-t from-indigo-600 via-violet-500 to-pink-500 shadow-lg shadow-indigo-500/20 rounded-t-md transition-all duration-700 ease-out"
+                      />
+                    </div>
                   </div>
                 );
               })}
             </div>
-            <div className="flex justify-around text-center pt-2 text-[10px] font-mono text-slate-400">
+
+            <div className="flex justify-around text-center pt-3 text-[10px] font-mono font-bold text-slate-400">
               <div>Judge A</div><div>Judge B</div><div>Judge C</div><div>Judge D</div>
             </div>
           </div>
 
-          <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 flex flex-col justify-between">
+          {/* FIXED PROGRESS INDICATOR: SPREAD PARAMETERS */}
+          <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 flex flex-col justify-between">
             <div>
-              <h2 className="text-sm font-black uppercase tracking-wider text-slate-200 flex items-center gap-2 mb-1"><Layers size={16} className="text-indigo-400" /> Heap Priority Spread</h2>
-              <p className="text-xs text-slate-400 font-mono">Transform & Conquer index tracking map bounds</p>
+              <h2 className="text-sm font-black uppercase tracking-wider text-slate-200 flex items-center gap-2 mb-1">
+                <Layers size={16} className="text-indigo-400" /> Heap Priority Spread
+              </h2>
+              <p className="text-xs text-slate-400 font-mono mb-4">Transform & Conquer index tracking map bounds</p>
             </div>
-            <div className="space-y-5 my-auto">
+
+            <div className="space-y-6 my-auto">
               <div>
-                <div className="flex justify-between text-xs font-mono text-slate-400 mb-1"><span>Emergency (Score $\ge$ 700)</span><span className="text-slate-200 font-bold">{queue.filter(c => c.priorityScore >= 700).length} Nodes</span></div>
-                <div className="w-full bg-slate-950 h-2 rounded-full overflow-hidden border border-slate-800"><div style={{ width: `${Math.min((queue.filter(c => c.priorityScore >= 700).length / Math.max(queue.length, 1)) * 100, 100)}%` }} className="bg-gradient-to-r from-red-500 to-amber-500 h-full"></div></div>
+                <div className="flex justify-between text-xs font-mono text-slate-400 mb-2">
+                  <span>Emergency (Score &ge; 700)</span>
+                  <span className="text-slate-200 font-bold">{queue.filter(c => c.priorityScore >= 700).length} Nodes</span>
+                </div>
+                <div className="w-full bg-slate-950 h-3 rounded-full overflow-hidden border border-slate-800">
+                  <div 
+                    style={{ width: `${Math.min((queue.filter(c => c.priorityScore >= 700).length / Math.max(queue.length, 1)) * 100, 100)}%` }} 
+                    className="bg-gradient-to-r from-red-500 to-amber-500 h-full transition-all duration-500"
+                  />
+                </div>
               </div>
+
               <div>
-                <div className="flex justify-between text-xs font-mono text-slate-400 mb-1"><span>Urgent (400 - 699)</span><span className="text-slate-200 font-bold">{queue.filter(c => c.priorityScore >= 400 && c.priorityScore < 700).length} Nodes</span></div>
-                <div className="w-full bg-slate-950 h-2 rounded-full overflow-hidden border border-slate-800"><div style={{ width: `${Math.min((queue.filter(c => c.priorityScore >= 400 && c.priorityScore < 700).length / Math.max(queue.length, 1)) * 100, 100)}%` }} className="bg-gradient-to-r from-indigo-500 to-pink-500 h-full"></div></div>
+                <div className="flex justify-between text-xs font-mono text-slate-400 mb-2">
+                  <span>Urgent (400 - 699)</span>
+                  <span className="text-slate-200 font-bold">{queue.filter(c => c.priorityScore >= 400 && c.priorityScore < 700).length} Nodes</span>
+                </div>
+                <div className="w-full bg-slate-950 h-3 rounded-full overflow-hidden border border-slate-800">
+                  <div 
+                    style={{ width: `${Math.min((queue.filter(c => c.priorityScore >= 400 && c.priorityScore < 700).length / Math.max(queue.length, 1)) * 100, 100)}%` }} 
+                    className="bg-gradient-to-r from-indigo-500 to-pink-500 h-full transition-all duration-500"
+                  />
+                </div>
               </div>
             </div>
-            <div className="bg-slate-950 border border-slate-800 rounded-xl p-3 text-center text-xs font-mono text-slate-400">Tree Bounds Total: <b className="text-indigo-400">{queue.length} Active References</b></div>
+
+            <div className="bg-slate-950 border border-slate-800 rounded-xl p-3 text-center text-xs font-mono text-slate-400 mt-4">
+              Tree Bounds Total: <b className="text-indigo-400">{queue.length} Active References</b>
+            </div>
           </div>
+
         </div>
       )}
 
-      {/* TAB VIEW 3: ENHANCED ACADEMIC COMPLEXITY ARCHITECTURE PROOF */}
+      {/* VIEW 3: SYLLABUS COMPLEXITY DECK */}
       {activeTab === 'blueprint' && (
-        <div className="p-6 flex-1 overflow-y-auto max-h-[calc(100vh-100px)] space-y-6 custom-scrollbar animate-fadeIn">
-          
+        <div className="p-6 flex-1 overflow-y-auto space-y-6">
           <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 flex items-center justify-between shadow-xl">
             <div className="flex items-center gap-3">
               <BookOpen className="text-indigo-400" size={22} />
@@ -423,112 +451,42 @@ export default function CompleteSystem() {
                 <p className="text-xs text-slate-400 font-mono">Academic design and complexity boundaries verified for verification marks</p>
               </div>
             </div>
-            <span className="text-[11px] font-mono font-bold bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 px-3 py-1 rounded-lg">4 Syllabus Categories Complete</span>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            
-            {/* CARD 1: HORSPOOL'S */}
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 flex flex-col justify-between shadow-lg relative overflow-hidden group">
+            {/* INGESTION METRICS */}
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 flex flex-col justify-between relative overflow-hidden">
               <div className="absolute top-0 right-0 bg-amber-500/10 text-amber-400 text-[9px] font-mono font-black tracking-widest px-3 py-1 rounded-bl-xl border-l border-b border-slate-800">INPUT ENHANCEMENT</div>
               <div>
                 <h3 className="text-base font-extrabold text-slate-200 mb-1">Horspool's String Matching</h3>
-                <p className="text-[11px] font-mono text-indigo-400 mb-4">Target: Automatic Statute Category & Weight Ingestion</p>
                 <p className="text-xs text-slate-400 leading-relaxed mb-6">
-                  Preprocesses text triggers from raw legal case narratives to build a **Shift Table** mismatch map. Instead of stepping linearly character-by-character, the engine skips large structural narrative strings whenever character mismatch occurs.
+                  Preprocesses text triggers from raw legal case narratives to build a Shift Table mismatch map. Instead of stepping linearly character-by-character, the engine skips large structural narrative strings whenever character mismatch occurs.
                 </p>
               </div>
-              
-              {/* Complexity Metrics Matrix Block */}
-              <div>
-                <div className="grid grid-cols-4 gap-2 text-center font-mono text-[10px] mb-4 bg-slate-950 p-2.5 rounded-xl border border-slate-800/60">
-                  <div className="border-r border-slate-800/80"><span className="text-slate-500 block text-[9px]">BEST</span><b className="text-emerald-400 font-black">Ω(n / m)</b></div>
-                  <div className="border-r border-slate-800/80"><span className="text-slate-500 block text-[9px]">AVERAGE</span><b className="text-amber-400 font-black">Θ(n)</b></div>
-                  <div className="border-r border-slate-800/80"><span className="text-slate-500 block text-[9px]">WORST</span><b className="text-red-400 font-black">O(n × m)</b></div>
-                  <div><span className="text-slate-500 block text-[9px]">SPACE</span><b className="text-indigo-400 font-black">O(|Σ|)</b></div>
-                </div>
-                <div className="bg-slate-950 px-3 py-2 rounded-lg border border-slate-800/40 text-[10px] font-mono text-slate-400 flex justify-between">
-                  <span><b className="text-slate-500">Method Context:</b> `horspoolSearch()`</span>
-                  <span className="text-slate-500">Alphabet size (|Σ|) = 256</span>
-                </div>
+              <div className="grid grid-cols-4 gap-2 text-center font-mono text-[10px] mb-4 bg-slate-950 p-2.5 rounded-xl border border-slate-800/60">
+                <div><span className="text-slate-500 block text-[9px]">BEST</span><b className="text-emerald-400 font-black">&Omega;(n/m)</b></div>
+                <div><span className="text-slate-500 block text-[9px]">AVERAGE</span><b className="text-amber-400 font-black">&Theta;(n)</b></div>
+                <div><span className="text-slate-500 block text-[9px]">WORST</span><b className="text-red-400 font-black">O(n&middot;m)</b></div>
+                <div><span className="text-slate-500 block text-[9px]">SPACE</span><b className="text-indigo-400 font-black">O(|&Sigma;|)</b></div>
               </div>
             </div>
 
-            {/* CARD 2: TOPOLOGICAL SORT */}
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 flex flex-col justify-between shadow-lg relative overflow-hidden group">
-              <div className="absolute top-0 right-0 bg-blue-500/10 text-blue-400 text-[9px] font-mono font-black tracking-widest px-3 py-1 rounded-bl-xl border-l border-b border-slate-800">DECREASE & CONQUER</div>
-              <div>
-                <h3 className="text-base font-extrabold text-slate-200 mb-1">Topological Sorting (via DFS)</h3>
-                <p className="text-[11px] font-mono text-indigo-400 mb-4">Target: Prerequisite & Inter-Case Dependency Chain Analysis</p>
-                <p className="text-xs text-slate-400 leading-relaxed mb-6">
-                  Linearizes inter-case dependency structures modeled as a **Directed Acyclic Graph (DAG)**. Uses deep recursive stack exploration. Cases finish traversal and are back-pushed to structure execution schedules safely, preventing structural litigation lock.
-                </p>
-              </div>
-
-              <div>
-                <div className="grid grid-cols-4 gap-2 text-center font-mono text-[10px] mb-4 bg-slate-950 p-2.5 rounded-xl border border-slate-800/60">
-                  <div className="border-r border-slate-800/80"><span className="text-slate-500 block text-[9px]">BEST</span><b className="text-emerald-400 font-black">Ω(V + E)</b></div>
-                  <div className="border-r border-slate-800/80"><span className="text-slate-500 block text-[9px]">AVERAGE</span><b className="text-amber-400 font-black">Θ(V + E)</b></div>
-                  <div className="border-r border-slate-800/80"><span className="text-slate-500 block text-[9px]">WORST</span><b className="text-red-400 font-black">O(V + E)</b></div>
-                  <div><span className="text-slate-500 block text-[9px]">SPACE</span><b className="text-indigo-400 font-black">O(V)</b></div>
-                </div>
-                <div className="bg-slate-950 px-3 py-2 rounded-lg border border-slate-800/40 text-[10px] font-mono text-slate-400 flex justify-between">
-                  <span><b className="text-slate-500">Method Context:</b> `topologicalSortDFS()`</span>
-                  <span className="text-slate-500">Nodes=Cases, Edges=Relations</span>
-                </div>
-              </div>
-            </div>
-
-            {/* CARD 3: MAX-HEAP */}
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 flex flex-col justify-between shadow-lg relative overflow-hidden group">
+            {/* DATA PROCESSING PARADIGMS */}
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 flex flex-col justify-between relative overflow-hidden">
               <div className="absolute top-0 right-0 bg-emerald-500/10 text-emerald-400 text-[9px] font-mono font-black tracking-widest px-3 py-1 rounded-bl-xl border-l border-b border-slate-800">TRANSFORM & CONQUER</div>
               <div>
                 <h3 className="text-base font-extrabold text-slate-200 mb-1">Binary Max-Heap Tree Map</h3>
-                <p className="text-[11px] font-mono text-indigo-400 mb-4">Target: Real-Time Dynamic Priority Extraction</p>
                 <p className="text-xs text-slate-400 leading-relaxed mb-6">
-                  Transforms a flat unstructured database array block into a balanced complete binary tree layout. Ensures strict parental inequality rules. Delivers constant $O(1)$ lookup for the nation's most urgent pending trial record.
+                  Transforms a flat unstructured database array block into a balanced complete binary tree layout. Ensures strict parental inequality rules. Delivers constant lookup for the highest priority legal case records.
                 </p>
               </div>
-
-              <div>
-                <div className="grid grid-cols-4 gap-2 text-center font-mono text-[10px] mb-4 bg-slate-950 p-2.5 rounded-xl border border-slate-800/60">
-                  <div className="border-r border-slate-800/80"><span className="text-slate-500 block text-[9px]">POP MAX</span><b className="text-emerald-400 font-black">O(1)</b></div>
-                  <div className="border-r border-slate-800/80"><span className="text-slate-500 block text-[9px]">INSERT</span><b className="text-amber-400 font-black">O(log n)</b></div>
-                  <div className="border-r border-slate-800/80"><span className="text-slate-500 block text-[9px]">HEAPIFY</span><b className="text-red-400 font-black">O(log n)</b></div>
-                  <div><span className="text-slate-500 block text-[9px]">SPACE</span><b className="text-indigo-400 font-black">O(n)</b></div>
-                </div>
-                <div className="bg-slate-950 px-3 py-2 rounded-lg border border-slate-800/40 text-[10px] font-mono text-slate-400 flex justify-between">
-                  <span><b className="text-slate-500">Class Context:</b> Type Definition `UIMaxHeap`</span>
-                  <span className="text-slate-500">Array-backed Binary Tree</span>
-                </div>
+              <div className="grid grid-cols-4 gap-2 text-center font-mono text-[10px] mb-4 bg-slate-950 p-2.5 rounded-xl border border-slate-800/60">
+                <div><span className="text-slate-500 block text-[9px]">EXTRACT</span><b className="text-emerald-400 font-black">O(1)</b></div>
+                <div><span className="text-slate-500 block text-[9px]">INSERT</span><b className="text-amber-400 font-black">O(log n)</b></div>
+                <div><span className="text-slate-500 block text-[9px]">HEAPIFY</span><b className="text-red-400 font-black">O(log n)</b></div>
+                <div><span className="text-slate-500 block text-[9px]">SPACE</span><b className="text-indigo-400 font-black">O(n)</b></div>
               </div>
             </div>
-
-            {/* CARD 4: BRANCH AND BOUND */}
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 flex flex-col justify-between shadow-lg relative overflow-hidden group">
-              <div className="absolute top-0 right-0 bg-pink-500/10 text-pink-400 text-[9px] font-mono font-black tracking-widest px-3 py-1 rounded-bl-xl border-l border-b border-slate-800">BRANCH & BOUND</div>
-              <div>
-                <h3 className="text-base font-extrabold text-slate-200 mb-1">The Assignment Problem Engine</h3>
-                <p className="text-[11px] font-mono text-indigo-400 mb-4">Target: Minimum Cost Judicial Allocation</p>
-                <p className="text-xs text-slate-400 leading-relaxed mb-6">
-                  Maps the extracted top case index against court availability vectors. Evaluates workload cost bounds inside a state-space tree configuration, pruning suboptimal assignment tree pathways to secure maximum clearing performance.
-                </p>
-              </div>
-
-              <div>
-                <div className="grid grid-cols-4 gap-2 text-center font-mono text-[10px] mb-4 bg-slate-950 p-2.5 rounded-xl border border-slate-800/60">
-                  <div className="border-r border-slate-800/80"><span className="text-slate-500 block text-[9px]">BEST</span><b className="text-emerald-400 font-black">O(n²)</b></div>
-                  <div className="border-r border-slate-800/80"><span className="text-slate-500 block text-[9px]">AVERAGE</span><b className="text-amber-400 font-black">Adaptive</b></div>
-                  <div className="border-r border-slate-800/80"><span className="text-slate-500 block text-[9px]">WORST</span><b className="text-red-400 font-black">O(n!)</b></div>
-                  <div><span className="text-slate-500 block text-[9px]">SPACE</span><b className="text-indigo-400 font-black">O(n²)</b></div>
-                </div>
-                <div className="bg-slate-950 px-3 py-2 rounded-lg border border-slate-800/40 text-[10px] font-mono text-slate-400 flex justify-between">
-                  <span><b className="text-slate-500">Method Context:</b> `branchAndBoundAssign()`</span>
-                  <span className="text-slate-500">State Space Pruned Optimization</span>
-                </div>
-              </div>
-            </div>
-
           </div>
         </div>
       )}
