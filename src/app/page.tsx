@@ -1,248 +1,333 @@
-// src/app/page.tsx
 'use client';
 
-import React, { useState } from 'react';
-import { MaxHeap, optimizeDocketWithDP, allocateRoomsGreedy, CourtCase } from '@/components/algorithms';
-import { Gavel, ShieldCheck, BarChart3, ListCollapse, Play, Layers } from 'lucide-react';
-import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
+import React, { useState, useEffect, useRef } from 'react';
+import { Play, Pause, Gavel, AlertTriangle, ShieldCheck, Clock, Layers, PlusCircle } from 'lucide-react';
 
-// Sourced directly from DevDataLab e-courts schema rules
-const rawShorthandPool: CourtCase[] = [
-  { c_id: "KA-BLR-001", type_name: "ST - SESSIONS TRIAL", date_of_filing: "2016-04-12", section: "302", female_petitioner: 1, durationHours: 3, startTime: 9, endTime: 12 },
-  { c_id: "KA-BLR-002", type_name: "CC - CRIMINAL CASE", date_of_filing: "2018-09-21", section: "379", female_petitioner: 0, durationHours: 2, startTime: 10, endTime: 12 },
-  { c_id: "KA-BLR-003", type_name: "Bail Application", date_of_filing: "2024-01-10", section: "438", female_petitioner: 1, durationHours: 1, startTime: 11, endTime: 12 },
-  { c_id: "KA-BLR-004", type_name: "ST - SESSIONS TRIAL", date_of_filing: "2015-02-14", section: "307", female_petitioner: 0, durationHours: 2, startTime: 13, endTime: 15 },
-  { c_id: "KA-BLR-005", type_name: "Warrant Case", date_of_filing: "2019-07-04", section: "420", female_petitioner: 0, durationHours: 3, startTime: 14, endTime: 17 },
-  { c_id: "KA-BLR-006", type_name: "CC - CRIMINAL CASE", date_of_filing: "2017-11-29", section: "324", female_petitioner: 1, durationHours: 1.5, startTime: 15.5, endTime: 17 }
-];
+// --- Inline Max-Heap Engine for State Management ---
+class UIMaxHeap {
+  constructor(items = []) {
+    this.heap = [];
+    items.forEach(item => this.insert(item));
+  }
 
-const stateProfiles = {
-  "India (Average)": { clearance: 89, shortfall: 14.7, rooms: 3 },
-  "Karnataka": { clearance: 91, shortfall: 12.0, rooms: 3 },
-  "Delhi (UT)": { clearance: 71, shortfall: 32.5, rooms: 2 }, // Higher shortfall collapses available judge rooms
-};
+  calculatePriority(item) {
+    let score = 0;
+    const details = item.acts_sections?.[0] || {};
+    
+    if (details.criminal === '1' || details.criminal === 1) score += 500;
+    if (details.bailable_ipc === '0' || details.bailable_ipc === 0) score += 300;
+    
+    const sections = parseInt(details.number_sections_ipc) || 0;
+    score += sections * 25;
+
+    if (item.date_of_filing) {
+      const daysPending = Math.ceil((new Date() - new Date(item.date_of_filing)) / (1000 * 60 * 60 * 24));
+      score += Math.min(daysPending * 0.1, 400);
+    }
+    return Math.round(score) || 100;
+  }
+
+  insert(item) {
+    const priorityScore = item.priorityScore || this.calculatePriority(item);
+    const node = { ...item, priorityScore };
+    this.heap.push(node);
+    this.heapifyUp(this.heap.length - 1);
+  }
+
+  heapifyUp(index) {
+    while (index > 0) {
+      let parent = Math.floor((index - 1) / 2);
+      if (this.heap[index].priorityScore <= this.heap[parent].priorityScore) break;
+      [this.heap[index], this.heap[parent]] = [this.heap[parent], this.heap[index]];
+      index = parent;
+    }
+  }
+
+  extractMax() {
+    if (this.heap.length === 0) return null;
+    const max = this.heap[0];
+    const end = this.heap.pop();
+    if (this.heap.length > 0) {
+      this.heap[0] = end;
+      this.heapifyDown(0);
+    }
+    return max;
+  }
+
+  heapifyDown(index) {
+    const len = this.heap.length;
+    const item = this.heap[index];
+    while (true) {
+      let left = 2 * index + 1;
+      let right = 2 * index + 2;
+      let swap = null;
+
+      if (left < len && this.heap[left].priorityScore > item.priorityScore) swap = left;
+      if (right < len && this.heap[right].priorityScore > (swap === null ? item.priorityScore : this.heap[left].priorityScore)) swap = right;
+      
+      if (swap === null) break;
+      this.heap[index] = this.heap[swap];
+      this.heap[swap] = item;
+      index = swap;
+    }
+  }
+}
 
 export default function Dashboard() {
-  const [selectedState, setSelectedState] = useState<keyof typeof stateProfiles>("Karnataka");
-  const [isOptimized, setIsOptimized] = useState(false);
-  
-  // Output states for logging
-  const [heapLog, setHeapLog] = useState<string[]>([]);
-  const [dpLog, setDpLog] = useState<string[]>([]);
-  const [greedyLog, setGreedyLog] = useState<string[]>([]);
-  const [dpTableValues, setDpTableValues] = useState<number[]>([]);
-  const [scheduledRooms, setScheduledRooms] = useState<CourtCase[][]>([[], [], []]);
+  const [heapInstance, setHeapInstance] = useState(new UIMaxHeap());
+  const [queue, setQueue] = useState([]);
+  const [processedCases, setProcessedCases] = useState([]);
+  const [isSimulating, setIsSimulating] = useState(true);
+  const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState({ total: 0, criminal: 0, nonBailable: 0 });
 
-  const runPipeline = () => {
-    const config = stateProfiles[selectedState];
-    
-    // Step 1: Compute Dynamic weights and perform Transform & Conquer Heap compilation
-    const heapEngine = new MaxHeap();
-    const weightedCases = rawShorthandPool.map(c => {
-      let base = c.section === "302" || c.section === "307" ? 50 : 20;
-      if (c.female_petitioner === 1) base += 20;
-      const filingYear = new Date(c.date_of_filing).getFullYear();
-      const yearsPending = 2026 - filingYear;
-      const finalWeight = Math.round(base * (1 + yearsPending * 0.15));
-      return { ...c, urgencyScore: finalWeight };
-    });
+  // Mock pool generator to simulate live state-wide e-Courts streaming feed
+  const caseTypes = ["Criminal Appeal", "Writ Petition", "Special Civil Application", "Session Case"];
+  const acts = ["IPC", "CrPC", "NDPS Act", "Prevention of Corruption"];
 
-    let heapTrace: string[] = [];
-    weightedCases.forEach(c => {
-      heapEngine.insert(c);
-      heapTrace.push(`Heap Insertion: Pushed ${c.c_id} (Calculated Priority Weight: ${c.urgencyScore})`);
-    });
-    setHeapLog(heapTrace);
-
-    // Pull from Heap deterministically
-    let extracted: CourtCase[] = [];
-    let current = heapEngine.extractMax();
-    while(current) {
-      extracted.push(current);
-      current = heapEngine.extractMax();
+  // 1. Initial Data Fetch from your live Supabase API route
+  useEffect(() => {
+    async function initFetch() {
+      try {
+        const res = await fetch('/api/cases');
+        const data = await res.json();
+        
+        if (data.success && data.cases) {
+          const initialHeap = new UIMaxHeap(data.cases);
+          setHeapInstance(initialHeap);
+          setQueue([...initialHeap.heap]);
+          updateMetrics([...initialHeap.heap]);
+        }
+      } catch (err) {
+        console.error("Failed loading Supabase dataset", err);
+      } finally {
+        setLoading(false);
+      }
     }
+    initFetch();
+  }, []);
 
-    // Step 2 & 3: Run Dynamic Programming combined with Decrease & Conquer
-    const { optimalCases, dpTable, logTrace } = optimizeDocketWithDP(extracted);
-    setDpLog(logTrace);
-    setDpTableValues(dpTable);
+  // 2. Continuous Live Ingestion Simulation loop (Runs every 4 seconds)
+  useEffect(() => {
+    if (!isSimulating || loading) return;
 
-    // Step 4: Allocate to Rooms Greedily based on State structural constraints
-    const { rooms, allocationLogs } = allocateRoomsGreedy(optimalCases, config.rooms);
-    setGreedyLog(allocationLogs);
-    setScheduledRooms(rooms);
+    const interval = setInterval(() => {
+      // Create random simulated emergency incoming case
+      const randomId = `${Math.floor(Math.random() * 90 + 10)}-${Math.floor(Math.random() * 90 + 10)}-2026${Math.floor(Math.random() * 900000 + 100000)}`;
+      const isCriminal = Math.random() > 0.4;
+      const isNonBailable = isCriminal && Math.random() > 0.3;
 
-    setIsOptimized(true);
+      const newIncomingCase = {
+        ddl_case_id: randomId,
+        type_name: caseTypes[Math.floor(Math.random() * caseTypes.length)],
+        date_of_filing: new Date().toISOString().split('T')[0],
+        acts_sections: [{
+          act: acts[Math.floor(Math.random() * acts.length)],
+          criminal: isCriminal ? '1' : '0',
+          bailable_ipc: isNonBailable ? '0' : '1',
+          number_sections_ipc: Math.floor(Math.random() * 8 + 1).toString()
+        }]
+      };
+
+      // Push into our Max-Heap structure tracking state pointers
+      heapInstance.insert(newIncomingCase);
+      const updatedQueue = [...heapInstance.heap];
+      setQueue(updatedQueue);
+      updateMetrics(updatedQueue);
+    }, 4000);
+
+    return () => clearInterval(interval);
+  }, [isSimulating, loading, heapInstance]);
+
+  const updateMetrics = (currentQueue) => {
+    const criminalCount = currentQueue.filter(c => c.acts_sections?.[0]?.criminal === '1' || c.acts_sections?.[0]?.criminal === 1).length;
+    const nonBailableCount = currentQueue.filter(c => c.acts_sections?.[0]?.bailable_ipc === '0' || c.acts_sections?.[0]?.bailable_ipc === 0).length;
+    setStats({ total: currentQueue.length, criminal: criminalCount, nonBailable: nonBailableCount });
   };
 
-  const performanceMetricsData = [
-    { name: 'Case 1', FIFO_WaitDays: 450, JusticeQueue_WaitDays: 90 },
-    { name: 'Case 2', FIFO_WaitDays: 780, JusticeQueue_WaitDays: 120 },
-    { name: 'Case 3', FIFO_WaitDays: 1200, JusticeQueue_WaitDays: 140 },
-    { name: 'Case 4', FIFO_WaitDays: 1450, JusticeQueue_WaitDays: 180 },
-    { name: 'Case 5', FIFO_WaitDays: 1900, JusticeQueue_WaitDays: 210 },
-  ];
+  // 3. Interactive Max-Heap Extraction O(log N) trigger button
+  const handleHearCase = () => {
+    const nextCase = heapInstance.extractMax();
+    if (nextCase) {
+      setQueue([...heapInstance.heap]);
+      setProcessedCases(prev => [
+        { ...nextCase, processedAt: new Date().toLocaleTimeString() },
+        ...prev.slice(0, 4)
+      ]);
+      updateMetrics([...heapInstance.heap]);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-500 mb-4"></div>
+        <p className="text-slate-400 font-mono tracking-wider">CONNECTING TO SUPABASE CLOUD PIPELINE...</p>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 p-8 font-sans">
-      {/* Header */}
-      <header className="flex flex-col md:flex-row md:items-center md:justify-between border-b border-slate-800 pb-6 mb-8 gap-4">
+    <div className="min-h-screen bg-slate-950 text-slate-100 p-6 font-sans">
+      {/* Top Banner Header Layout */}
+      <header className="flex flex-col md:flex-row justify-between items-start md:items-center border-b border-slate-800 pb-5 mb-8 gap-4">
         <div>
-          <h1 className="text-3xl font-extrabold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-teal-400 flex items-center gap-3">
-            <Gavel className="text-teal-400" /> JusticeQueue Dashboard
-          </h1>
-          <p className="text-sm text-slate-400 mt-1">Syllabus-Aligned Multi-Paradigm Court Scheduler Architecture</p>
-        </div>
-        <div className="flex items-center gap-4">
-          <div className="flex flex-col">
-            <label className="text-xs text-slate-500 font-bold uppercase tracking-wider mb-1">Calibration State Profile</label>
-            <select 
-              value={selectedState} 
-              onChange={(e) => { setSelectedState(e.target.value as any); setIsOptimized(false); }}
-              className="bg-slate-900 border border-slate-700 text-sm rounded-lg p-2.5 focus:ring-teal-500 focus:border-teal-500"
-            >
-              {Object.keys(stateProfiles).map((s) => <option key={s} value={s}>{s}</option>)}
-            </select>
+          <div className="flex items-center gap-2 text-emerald-400 text-xs font-mono tracking-widest uppercase bg-emerald-500/10 px-2.5 py-1 rounded-md w-fit mb-2">
+            <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse"></span>
+            Live e-Courts Ingestion In Sync
           </div>
+          <h1 className="text-3xl font-extrabold tracking-tight bg-gradient-to-r from-slate-100 to-slate-400 bg-clip-text text-transparent">
+            National Judicial Priority Engine
+          </h1>
+          <p className="text-slate-400 text-sm mt-0.5 font-mono">Algorithm Concept: Max-Heap Real-Time Scheduling Optimizer</p>
+        </div>
+
+        {/* Live Presentation Control Panel */}
+        <div className="flex items-center gap-3 bg-slate-900 border border-slate-800 p-2 rounded-xl">
           <button 
-            onClick={runPipeline}
-            className="flex items-center gap-2 bg-gradient-to-r from-teal-500 to-indigo-600 hover:from-teal-600 hover:to-indigo-700 text-white font-bold py-3 px-6 rounded-lg shadow-lg transition duration-200 mt-4 md:mt-0"
+            onClick={() => setIsSimulating(!isSimulating)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold tracking-wide transition-all ${isSimulating ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' : 'bg-slate-800 text-slate-300'}`}
           >
-            <Play size={16} /> Run Optimization Engine
+            {isSimulating ? <Pause size={14} className="animate-pulse" /> : <Play size={14} />}
+            {isSimulating ? "Pause Feed Simulation" : "Resume Stream"}
+          </button>
+          <button 
+            onClick={handleHearCase}
+            disabled={queue.length === 0}
+            className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-4 py-1.5 rounded-lg text-xs tracking-wider uppercase shadow-lg shadow-emerald-900/30 active:scale-95 transition-all disabled:opacity-40"
+          >
+            <Gavel size={14} />
+            Hear Next Case (Extract Max)
           </button>
         </div>
       </header>
 
-      {/* Infrastructure KPI Row */}
-      <section className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-sm">
-          <p className="text-xs text-slate-500 font-bold uppercase tracking-wider">Lower Court Clearance Rate</p>
-          <p className="text-3xl font-black text-indigo-400 mt-2">{stateProfiles[selectedState].clearance}%</p>
-          <div className="w-full bg-slate-800 rounded-full h-1.5 mt-3">
-            <div className="bg-indigo-500 h-1.5 rounded-full" style={{ width: `${stateProfiles[selectedState].clearance}%` }}></div>
+      {/* Dynamic Animated Status Metric Cards */}
+      <section className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+        <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 flex items-center gap-4">
+          <div className="p-3 rounded-lg bg-blue-500/10 text-blue-400"><Layers size={20} /></div>
+          <div>
+            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Heap Queue Size</p>
+            <h3 className="text-2xl font-bold font-mono transition-all duration-300">{stats.total}</h3>
           </div>
         </div>
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-sm">
-          <p className="text-xs text-slate-500 font-bold uppercase tracking-wider">Courthall Infrastructure Shortfall</p>
-          <p className="text-3xl font-black text-amber-500 mt-2">{stateProfiles[selectedState].shortfall}%</p>
-          <div className="w-full bg-slate-800 rounded-full h-1.5 mt-3">
-            <div className="bg-amber-500 h-1.5 rounded-full" style={{ width: `${stateProfiles[selectedState].shortfall}%` }}></div>
+        <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 flex items-center gap-4">
+          <div className="p-3 rounded-lg bg-red-500/10 text-red-400"><AlertTriangle size={20} /></div>
+          <div>
+            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Criminal Filings</p>
+            <h3 className="text-2xl font-bold text-red-400 font-mono">{stats.criminal}</h3>
           </div>
         </div>
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-sm">
-          <p className="text-xs text-slate-500 font-bold uppercase tracking-wider">Algorithmic Compliance State</p>
-          <p className="text-md font-bold text-teal-400 mt-3 flex items-center gap-2">
-            <ShieldCheck size={18} /> 4 Syllabus Paradigms Verified
-          </p>
+        <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 flex items-center gap-4">
+          <div className="p-3 rounded-lg bg-amber-500/10 text-amber-400"><Clock size={20} /></div>
+          <div>
+            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Non-Bailable Urgency</p>
+            <h3 className="text-2xl font-bold text-amber-400 font-mono">{stats.nonBailable}</h3>
+          </div>
+        </div>
+        <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 flex items-center gap-4">
+          <div className="p-3 rounded-lg bg-emerald-500/10 text-emerald-400"><ShieldCheck size={20} /></div>
+          <div>
+            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Root Priority Index</p>
+            <h3 className="text-2xl font-bold text-emerald-400 font-mono">
+              {queue[0]?.priorityScore || 0}
+            </h3>
+          </div>
         </div>
       </section>
 
-      {/* Main Panels */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Left Courtroom Gantt Matrix */}
-        <div className="lg:col-span-2 space-y-6">
-          <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-md">
-            <h3 className="text-lg font-bold flex items-center gap-2 text-slate-200 border-b border-slate-800 pb-3 mb-4">
-              <Layers size={18} className="text-indigo-400" /> Courtroom Timeline Matrix (Greedy Distribution)
-            </h3>
-            {!isOptimized ? (
-              <div className="py-20 text-center text-slate-500 border border-dashed border-slate-800 rounded-lg">
-                Click "Run Optimization Engine" to evaluate timeline streams
-              </div>
-            ) : (
-              <div className="space-y-6">
-                {scheduledRooms.map((roomCases, idx) => (
-                  <div key={idx} className="bg-slate-950/60 p-4 border border-slate-800 rounded-lg">
-                    <h4 className="text-xs font-black uppercase text-slate-400 tracking-wider mb-3">Judge Courtroom Room 0{idx + 1}</h4>
-                    <div className="relative h-16 bg-slate-900 rounded border border-slate-800 flex items-center p-2 gap-3 overflow-x-auto">
-                      {roomCases.length === 0 ? (
-                        <span className="text-xs text-slate-600 pl-2">No hearings allocated to room.</span>
-                      ) : (
-                        roomCases.map((c, cIdx) => (
-                          <div 
-                            key={cIdx} 
-                            className="h-12 rounded bg-gradient-to-b from-indigo-950 to-indigo-900 border border-indigo-700 min-w-[140px] p-2 flex flex-col justify-between shadow-inner"
-                          >
-                            <div className="flex justify-between items-center text-[10px]">
-                              <span className="font-bold text-teal-400">{c.c_id}</span>
-                              <span className="text-slate-400">{c.startTime}:00-{c.endTime}:00</span>
-                            </div>
-                            <span className="text-[9px] font-medium truncate text-slate-300">{c.type_name}</span>
-                          </div>
-                        ))
-                      )}
+      {/* Main Dual Component Grid View */}
+      <main className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        {/* Left 2 Columns: Visual Active Max-Heap Array Order Structure */}
+        <div className="lg:col-span-2 flex flex-col bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-2xl">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-md font-bold tracking-wide text-slate-200 uppercase flex items-center gap-2">
+              <span>📊</span> Prioritized Scheduling Order (Heap Array Visualizer)
+            </h2>
+            <span className="text-xs font-mono bg-slate-800 text-slate-400 px-2 py-0.5 rounded">
+              Index [0] represents Heap Root
+            </span>
+          </div>
+
+          <div className="space-y-2.5 overflow-y-auto max-h-[500px] pr-2 custom-scrollbar">
+            {queue.map((item, index) => {
+              const details = item.acts_sections?.[0] || {};
+              return (
+                <div 
+                  key={item.ddl_case_id + index}
+                  className={`flex flex-col sm:flex-row sm:items-center justify-between border p-3.5 rounded-lg transition-all duration-500 transform ${index === 0 ? 'bg-gradient-to-r from-emerald-950/40 to-slate-900 border-emerald-500/40 scale-[1.01] shadow-md shadow-emerald-950/20' : 'bg-slate-950/50 border-slate-800/80 hover:border-slate-700'}`}
+                >
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded font-bold ${index === 0 ? 'bg-emerald-500 text-slate-950' : 'bg-slate-800 text-slate-400'}`}>
+                        HEAP IDX [{index}]
+                      </span>
+                      <span className="text-xs font-mono font-bold text-slate-300">{item.ddl_case_id}</span>
+                      <span className="text-slate-500 text-xs">•</span>
+                      <span className="text-xs text-slate-400 font-medium">{item.type_name}</span>
+                    </div>
+                    <div className="flex items-center gap-3 text-xs text-slate-500 pt-0.5">
+                      <span className="bg-slate-900 px-2 py-0.5 rounded border border-slate-800/60 text-slate-400">
+                        Act: <b className="text-slate-300">{details.act || 'N/A'}</b>
+                      </span>
+                      <span>IPC Sections: <b className="text-slate-400">{details.number_sections_ipc || 0}</b></span>
+                      {details.criminal === '1' && <span className="text-red-400 text-[11px] font-bold">⚠️ Criminal Case</span>}
+                      {details.bailable_ipc === '0' && <span className="text-amber-400 text-[11px] font-bold">🚫 Non-Bailable</span>}
                     </div>
                   </div>
-                ))}
+                  
+                  {/* Visual Weight Index Tag */}
+                  <div className="mt-2 sm:mt-0 flex items-center justify-between sm:justify-end gap-3 border-t sm:border-t-0 border-slate-800 pt-2 sm:pt-0">
+                    <div className="text-right">
+                      <p className="text-[10px] uppercase font-bold tracking-wider text-slate-500">Calculated Score</p>
+                      <p className={`font-mono text-base font-black ${index === 0 ? 'text-emerald-400' : 'text-slate-300'}`}>{item.priorityScore}</p>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+            {queue.length === 0 && (
+              <div className="text-center py-16 text-slate-500 border border-dashed border-slate-800 rounded-lg">
+                No legal files loaded in current queue context.
               </div>
             )}
           </div>
-
-          {/* Performance Data Chart */}
-          <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-md">
-            <h3 className="text-lg font-bold flex items-center gap-2 text-slate-200 border-b border-slate-800 pb-3 mb-4">
-              <BarChart3 size={18} className="text-teal-400" /> Backlog Wait Time Degradation Analysis
-            </h3>
-            <div className="h-64 w-full pt-4">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={performanceMetricsData}>
-                  <defs>
-                    <linearGradient id="colorFifo" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#ef4444" stopOpacity={0.2}/>
-                      <stop offset="95%" stopColor="#ef4444" stopOpacity={0}/>
-                    </linearGradient>
-                    <linearGradient id="colorJq" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#14b8a6" stopOpacity={0.2}/>
-                      <stop offset="95%" stopColor="#14b8a6" stopOpacity={0}/>
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                  <XAxis dataKey="name" stroke="#64748b" fontSize={11} />
-                  <YAxis stroke="#64748b" label={{ value: 'Days in Backlog Queue', angle: -90, position: 'insideLeft', style: {textAnchor: 'middle', fill: '#64748b', fontSize: 11} }} fontSize={11} />
-                  <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', color: '#f8fafc' }} />
-                  <Area type="monotone" dataKey="FIFO_WaitDays" name="Baseline FIFO Queue" stroke="#ef4444" fillOpacity={1} fill="url(#colorFifo)" strokeWidth={2} />
-                  <Area type="monotone" dataKey="JusticeQueue_WaitDays" name="JusticeQueue Optimized" stroke="#14b8a6" fillOpacity={1} fill="url(#colorJq)" strokeWidth={2} />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
         </div>
 
-        {/* Right Tab Paradigm Log Inspector */}
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-md flex flex-col h-[680px]">
-          <h3 className="text-lg font-bold flex items-center gap-2 text-slate-200 border-b border-slate-800 pb-3 mb-4">
-            <ListCollapse size={18} className="text-amber-400" /> Paradigm Execution Console
-          </h3>
-          <div className="flex-1 overflow-y-auto space-y-6 pr-1 text-[11px] font-mono">
-            {/* Box 1 */}
-            <div className="bg-slate-950 p-3 rounded border border-slate-800">
-              <h4 className="text-xs font-bold text-indigo-400 mb-2">1. Transform & Conquer Log (Max-Heap Layout)</h4>
-              <div className="max-h-24 overflow-y-auto space-y-1 text-slate-400">
-                {heapLog.length === 0 ? "Awaiting initialization signal..." : heapLog.map((l, i) => <div key={i}>&gt; {l}</div>)}
-              </div>
-            </div>
-            {/* Box 2 & 3 */}
-            <div className="bg-slate-950 p-3 rounded border border-slate-800">
-              <h4 className="text-xs font-bold text-teal-400 mb-2">2 & 3. DP Table Layout & Decrease-Conquer Trace</h4>
-              <div className="max-h-36 overflow-y-auto space-y-1 text-slate-400">
-                {dpLog.length === 0 ? "Awaiting calculation run..." : dpLog.map((l, i) => <div key={i}>&gt; {l}</div>)}
-              </div>
-              {dpTableValues.length > 0 && (
-                <div className="mt-2 pt-2 border-t border-slate-800 text-teal-500 font-bold">
-                  Memoization Array M[j]: [{dpTableValues.join(', ')}]
+        {/* Right 1 Column: Real-Time Historical Processing Log */}
+        <div className="flex flex-col bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-2xl">
+          <h2 className="text-md font-bold tracking-wide text-slate-200 uppercase mb-4 flex items-center gap-2">
+            <span>⚖️</span> Active Disposal Log (Processed Output)
+          </h2>
+          
+          <div className="space-y-3 flex-1 overflow-y-auto max-h-[500px]">
+            {processedCases.map((item, i) => (
+              <div 
+                key={item.ddl_case_id + i} 
+                className="bg-slate-950/60 border border-slate-800/60 p-3 rounded-lg text-xs relative overflow-hidden animate-fadeIn"
+              >
+                <div className="absolute right-2 top-2 bg-emerald-500/10 text-emerald-400 text-[10px] px-1.5 py-0.5 rounded font-mono font-medium">
+                  Disposed @ {item.processedAt}
                 </div>
-              )}
-            </div>
-            {/* Box 4 */}
-            <div className="bg-slate-950 p-3 rounded border border-slate-800">
-              <h4 className="text-xs font-bold text-amber-500 mb-2">4. Greedy Partition Allocation Log</h4>
-              <div className="max-h-28 overflow-y-auto space-y-1 text-slate-400">
-                {greedyLog.length === 0 ? "Awaiting courtroom balancing loop..." : greedyLog.map((l, i) => <div key={i}>&gt; {l}</div>)}
+                <p className="font-mono font-bold text-slate-300 mb-1">{item.ddl_case_id}</p>
+                <p className="text-slate-400 mb-2">{item.type_name}</p>
+                <p className="text-[10px] text-slate-500 font-mono uppercase tracking-wider">
+                  Disposal Complexity Multiplier: <span className="text-emerald-500 font-bold">{item.priorityScore}</span>
+                </p>
               </div>
-            </div>
+            ))}
+            
+            {processedCases.length === 0 && (
+              <div className="text-center py-12 text-slate-600 font-mono text-xs border border-dashed border-slate-800 rounded-lg h-full flex flex-col justify-center items-center gap-1">
+                <Gavel size={24} className="text-slate-700 mb-1" />
+                Waiting for judge actions...
+                <p className="text-[10px] text-slate-600 max-w-[180px] mt-1">Click "Hear Next Case" above to execute O(1) retrieval</p>
+              </div>
+            )}
           </div>
         </div>
-      </div>
+      </main>
     </div>
   );
 }
