@@ -223,7 +223,7 @@ export default function CompleteSystem() {
 
       heapInstance.insert(mockCase);
       setQueue([...heapInstance.heap]);
-    }, 1000);
+    }, 2000);
     return () => clearInterval(interval);
   }, [isSimulating, loading, heapInstance]);
 
