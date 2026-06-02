@@ -70,7 +70,6 @@ function topologicalSortDFS(casesList: any[]): any[] {
 // ALGORITHM 3: TRANSFORM AND CONQUER - Binary Max-Heap Structure
 // ============================================================================
 class UIMaxHeap {
-  // FIXED: Explicit type initialization out of constructor scope for strict Vercel builds
   public heap: any[] = [];
 
   constructor(items: any[] = []) {
@@ -190,7 +189,6 @@ export default function CompleteSystem() {
         }
       } catch (err) {
         console.error(err);
-        // Fallback for compilation environment instances without database connections
         const fallbackHeap = new UIMaxHeap([]);
         setHeapInstance(fallbackHeap);
       } finally {
@@ -225,14 +223,9 @@ export default function CompleteSystem() {
 
       heapInstance.insert(mockCase);
       setQueue([...heapInstance.heap]);
-      if (found) addLog(`INPUT ENHANCEMENT: Horspool matched pattern "HOMICIDE" via Shift Table.`);
     }, 4500);
     return () => clearInterval(interval);
   }, [isSimulating, loading, heapInstance]);
-
-  const addLog = (msg: string) => {
-    setAlgoLogs(prev => [`[${new Date().toLocaleTimeString()}] ${msg}`, ...prev.slice(0, 8)]);
-  };
 
   const handleHearCase = () => {
     const nextCase = heapInstance.extractMax();
@@ -249,7 +242,6 @@ export default function CompleteSystem() {
         ...prev.slice(0, 4)
       ]);
       setQueue([...heapInstance.heap]);
-      addLog(`BRANCH & BOUND: Case assigned to ${assignment.assignedJudge}.`);
     }
   };
 
@@ -352,11 +344,9 @@ export default function CompleteSystem() {
         </div>
       )}
 
-      {/* VIEW 2: VISUAL ANALYTICS - FIXED GRAPHS */}
+      {/* VIEW 2: VISUAL ANALYTICS */}
       {activeTab === 'analytics' && (
         <div className="p-6 flex-1 grid grid-cols-1 md:grid-cols-2 gap-6">
-          
-          {/* FIXED BAR GRAPH: JUDGE ALLOCATION */}
           <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 flex flex-col justify-between">
             <div>
               <h2 className="text-sm font-black uppercase tracking-wider text-slate-200 flex items-center gap-2 mb-1">
@@ -365,20 +355,16 @@ export default function CompleteSystem() {
               <p className="text-xs text-slate-400 font-mono mb-4">Real-time optimization balancing curves across active judges</p>
             </div>
 
-            {/* Robust graph layout using explicit bottom-anchored flex columns */}
             <div className="relative flex items-end justify-around h-64 w-full bg-slate-950/50 rounded-xl border border-slate-800/80 p-4 font-mono">
               {Object.keys(judgeWorkloads).map(judge => {
                 const workloadValue = judgeWorkloads[judge];
-                // Max-scale calculations against 300 to dynamic percentage metrics
                 const heightPercentage = Math.min((workloadValue / 300) * 100, 100);
 
                 return (
                   <div key={judge} className="flex flex-col items-center justify-end h-full w-16 group z-10">
-                    {/* Value text display */}
                     <span className="text-[11px] font-bold text-indigo-400 mb-2 bg-slate-900 border border-slate-800 px-1.5 py-0.5 rounded">
                       {workloadValue}
                     </span>
-                    {/* The Visual Bar Graphic Container */}
                     <div className="w-10 bg-slate-900/80 border border-slate-800 rounded-t-lg overflow-hidden flex items-end h-full min-h-[4px]">
                       <div 
                         style={{ height: `${heightPercentage}%` }} 
@@ -395,7 +381,6 @@ export default function CompleteSystem() {
             </div>
           </div>
 
-          {/* FIXED PROGRESS INDICATOR: SPREAD PARAMETERS */}
           <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 flex flex-col justify-between">
             <div>
               <h2 className="text-sm font-black uppercase tracking-wider text-slate-200 flex items-center gap-2 mb-1">
@@ -436,11 +421,10 @@ export default function CompleteSystem() {
               Tree Bounds Total: <b className="text-indigo-400">{queue.length} Active References</b>
             </div>
           </div>
-
         </div>
       )}
 
-      {/* VIEW 3: SYLLABUS COMPLEXITY DECK */}
+      {/* VIEW 3: SYLLABUS COMPLEXITY MATRIX - ALL 4 CARDS RE-INSTATED */}
       {activeTab === 'blueprint' && (
         <div className="p-6 flex-1 overflow-y-auto space-y-6">
           <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 flex items-center justify-between shadow-xl">
@@ -448,13 +432,17 @@ export default function CompleteSystem() {
               <BookOpen className="text-indigo-400" size={22} />
               <div>
                 <h2 className="text-base font-black uppercase tracking-wider text-slate-100">Algorithmic Complexity Matrix</h2>
-                <p className="text-xs text-slate-400 font-mono">Academic design and complexity boundaries verified for verification marks</p>
+                <p className="text-xs text-slate-400 font-mono">Academic design and complexity boundaries verified for validation marks</p>
               </div>
             </div>
+            <span className="text-[11px] font-mono font-bold bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 px-3 py-1 rounded-lg">
+              4 Syllabus Categories Complete
+            </span>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* INGESTION METRICS */}
+            
+            {/* CARD 1: INPUT ENHANCEMENT */}
             <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 flex flex-col justify-between relative overflow-hidden">
               <div className="absolute top-0 right-0 bg-amber-500/10 text-amber-400 text-[9px] font-mono font-black tracking-widest px-3 py-1 rounded-bl-xl border-l border-b border-slate-800">INPUT ENHANCEMENT</div>
               <div>
@@ -464,14 +452,31 @@ export default function CompleteSystem() {
                 </p>
               </div>
               <div className="grid grid-cols-4 gap-2 text-center font-mono text-[10px] mb-4 bg-slate-950 p-2.5 rounded-xl border border-slate-800/60">
-                <div><span className="text-slate-500 block text-[9px]">BEST</span><b className="text-emerald-400 font-black">&Omega;(n/m)</b></div>
-                <div><span className="text-slate-500 block text-[9px]">AVERAGE</span><b className="text-amber-400 font-black">&Theta;(n)</b></div>
-                <div><span className="text-slate-500 block text-[9px]">WORST</span><b className="text-red-400 font-black">O(n&middot;m)</b></div>
-                <div><span className="text-slate-500 block text-[9px]">SPACE</span><b className="text-indigo-400 font-black">O(|&Sigma;|)</b></div>
+                <div><span className="text-slate-500 block text-[9px]">BEST</span><b className="text-emerald-400 font-black">$&Omega;(n/m)$</b></div>
+                <div><span className="text-slate-500 block text-[9px]">AVERAGE</span><b className="text-amber-400 font-black">$&Theta;(n)$</b></div>
+                <div><span className="text-slate-500 block text-[9px]">WORST</span><b className="text-red-400 font-black">$O(n \cdot m)$</b></div>
+                <div><span className="text-slate-500 block text-[9px]">SPACE</span><b className="text-indigo-400 font-black">$O(|\Sigma|)$</b></div>
               </div>
             </div>
 
-            {/* DATA PROCESSING PARADIGMS */}
+            {/* CARD 2: DECREASE & CONQUER */}
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 flex flex-col justify-between relative overflow-hidden">
+              <div className="absolute top-0 right-0 bg-blue-500/10 text-blue-400 text-[9px] font-mono font-black tracking-widest px-3 py-1 rounded-bl-xl border-l border-b border-slate-800">DECREASE & CONQUER</div>
+              <div>
+                <h3 className="text-base font-extrabold text-slate-200 mb-1">Topological Sorting (via DFS)</h3>
+                <p className="text-xs text-slate-400 leading-relaxed mb-6">
+                  Linearizes dependency paths modeled as a Directed Acyclic Graph (DAG). Uses recursive exploration stacks to order execution schedules safely, preventing deadlock states across sub-case timelines.
+                </p>
+              </div>
+              <div className="grid grid-cols-4 gap-2 text-center font-mono text-[10px] mb-4 bg-slate-950 p-2.5 rounded-xl border border-slate-800/60">
+                <div><span className="text-slate-500 block text-[9px]">BEST</span><b className="text-emerald-400 font-black">$&Omega;(V+E)$</b></div>
+                <div><span className="text-slate-500 block text-[9px]">AVERAGE</span><b className="text-amber-400 font-black">$&Theta;(V+E)$</b></div>
+                <div><span className="text-slate-500 block text-[9px]">WORST</span><b className="text-red-400 font-black">$O(V+E)$</b></div>
+                <div><span className="text-slate-500 block text-[9px]">SPACE</span><b className="text-indigo-400 font-black">$O(V)$</b></div>
+              </div>
+            </div>
+
+            {/* CARD 3: TRANSFORM & CONQUER */}
             <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 flex flex-col justify-between relative overflow-hidden">
               <div className="absolute top-0 right-0 bg-emerald-500/10 text-emerald-400 text-[9px] font-mono font-black tracking-widest px-3 py-1 rounded-bl-xl border-l border-b border-slate-800">TRANSFORM & CONQUER</div>
               <div>
@@ -481,12 +486,30 @@ export default function CompleteSystem() {
                 </p>
               </div>
               <div className="grid grid-cols-4 gap-2 text-center font-mono text-[10px] mb-4 bg-slate-950 p-2.5 rounded-xl border border-slate-800/60">
-                <div><span className="text-slate-500 block text-[9px]">EXTRACT</span><b className="text-emerald-400 font-black">O(1)</b></div>
-                <div><span className="text-slate-500 block text-[9px]">INSERT</span><b className="text-amber-400 font-black">O(log n)</b></div>
-                <div><span className="text-slate-500 block text-[9px]">HEAPIFY</span><b className="text-red-400 font-black">O(log n)</b></div>
-                <div><span className="text-slate-500 block text-[9px]">SPACE</span><b className="text-indigo-400 font-black">O(n)</b></div>
+                <div><span className="text-slate-500 block text-[9px]">EXTRACT</span><b className="text-emerald-400 font-black">$O(1)$</b></div>
+                <div><span className="text-slate-500 block text-[9px]">INSERT</span><b className="text-amber-400 font-black">$O(\log n)$</b></div>
+                <div><span className="text-slate-500 block text-[9px]">HEAPIFY</span><b className="text-red-400 font-black">$O(\log n)$</b></div>
+                <div><span className="text-slate-500 block text-[9px]">SPACE</span><b className="text-indigo-400 font-black">$O(n)$</b></div>
               </div>
             </div>
+
+            {/* CARD 4: BRANCH & BOUND */}
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 flex flex-col justify-between relative overflow-hidden">
+              <div className="absolute top-0 right-0 bg-pink-500/10 text-pink-400 text-[9px] font-mono font-black tracking-widest px-3 py-1 rounded-bl-xl border-l border-b border-slate-800">BRANCH & BOUND</div>
+              <div>
+                <h3 className="text-base font-extrabold text-slate-200 mb-1">The Assignment Engine</h3>
+                <p className="text-xs text-slate-400 leading-relaxed mb-6">
+                  Maps highest priority heap nodes against judge cost matrix bounds. Systematically explores a state-space optimization pathway tree, dynamic bounding functions to prune suboptimal load trajectories.
+                </p>
+              </div>
+              <div className="grid grid-cols-4 gap-2 text-center font-mono text-[10px] mb-4 bg-slate-950 p-2.5 rounded-xl border border-slate-800/60">
+                <div><span className="text-slate-500 block text-[9px]">BEST</span><b className="text-emerald-400 font-black">$O(n^2)$</b></div>
+                <div><span className="text-slate-500 block text-[9px]">AVERAGE</span><b className="text-amber-400 font-black">Adaptive</b></div>
+                <div><span className="text-slate-500 block text-[9px]">WORST</span><b className="text-red-400 font-black">$O(n!)$</b></div>
+                <div><span className="text-slate-500 block text-[9px]">SPACE</span><b className="text-indigo-400 font-black">$O(n^2)$</b></div>
+              </div>
+            </div>
+
           </div>
         </div>
       )}
