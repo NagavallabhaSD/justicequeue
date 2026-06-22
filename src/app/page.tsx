@@ -204,37 +204,37 @@ const algorithmCards = [
     ]
   },
   {
-    id: 'kmp',
-    title: 'KMP String Matching',
-    category: 'STRING PROCESSING',
+    id: 'intervalsched',
+    title: 'Courtroom Interval Scheduling',
+    category: 'GREEDY PARADIGM',
     categoryColor: 'violet',
-    description: 'Knuth-Morris-Pratt algorithm builds a failure function table to avoid redundant character comparisons. Efficiently searches for patterns in text narratives by maintaining a state machine that skips previously matched prefixes.',
+    description: 'Optimizes the sequence of hearings within a single courtroom to maximize the number of cases heard per day without time overlaps. Greedily selects non-conflicting case intervals sorted by earliest completion time, ensuring maximum courtroom utilization.',
     complexities: [
       { label: 'BEST', value: 'Omega(n)', color: 'emerald' },
-      { label: 'AVERAGE', value: 'Theta(n)', color: 'amber' },
-      { label: 'WORST', value: 'O(n + m)', color: 'red' },
-      { label: 'SPACE', value: 'O(m)', color: 'indigo' }
+      { label: 'AVERAGE', value: 'Theta(n log n)', color: 'amber' },
+      { label: 'WORST', value: 'O(n log n)', color: 'red' },
+      { label: 'SPACE', value: 'O(n)', color: 'indigo' }
     ]
   },
   {
-    id: 'fordfulk',
-    title: 'Ford-Fulkerson Max-Flow',
-    category: 'NETWORK FLOW',
+    id: 'knapsack',
+    title: 'Judicial Daily Load Optimization',
+    category: '0/1 KNAPSACK DP',
     categoryColor: 'cyan',
-    description: 'Computes maximum flow in a flow network representing case dependencies and judge availability constraints. Uses augmenting paths and residual graphs to determine optimal case routing through the adjudication pipeline.',
+    description: 'Selects the highest-priority cases to fit exactly into a judge\'s limited daily bench hours, maximizing the cumulative priority score processed. Uses dynamic programming to build an optimal subset of cases that respects the time capacity constraint.',
     complexities: [
-      { label: 'BEST', value: 'Omega(E)', color: 'emerald' },
-      { label: 'AVERAGE', value: 'Theta(V·E²)', color: 'amber' },
-      { label: 'WORST', value: 'O(E·max_flow)', color: 'red' },
-      { label: 'SPACE', value: 'O(V + E)', color: 'indigo' }
+      { label: 'BEST', value: 'Omega(n)', color: 'emerald' },
+      { label: 'AVERAGE', value: 'Theta(n·W)', color: 'amber' },
+      { label: 'WORST', value: 'O(n·W)', color: 'red' },
+      { label: 'SPACE', value: 'O(n·W)', color: 'indigo' }
     ]
   },
   {
     id: 'dijkstra',
-    title: "Dijkstra's Shortest Path",
-    category: 'GRAPH THEORY',
+    title: 'Optimal Procedural Routing',
+    category: 'SHORTEST PATH',
     categoryColor: 'rose',
-    description: 'Finds shortest paths from source judge assignments to destination case resolutions using a priority queue. Maintains minimum distance estimates for all intermediate nodes in the case dependency graph.',
+    description: 'Navigates the optimal procedural pathway from case filing through final adjudication by modeling the legal routing network as a weighted graph. Computes shortest paths for case transfers across departments while minimizing processing delays and jurisdictional delays.',
     complexities: [
       { label: 'BEST', value: 'Omega(V log V)', color: 'emerald' },
       { label: 'AVERAGE', value: 'Theta(V log V + E)', color: 'amber' },
@@ -244,10 +244,10 @@ const algorithmCards = [
   },
   {
     id: 'prims',
-    title: "Prim's Minimum Spanning Tree",
-    category: 'GRAPH THEORY',
+    title: 'Multi-Case Dependency Clustering',
+    category: 'SPANNING TREE',
     categoryColor: 'teal',
-    description: 'Constructs a minimum spanning tree for case dependencies by greedily selecting edges with minimum weight. Ensures all cases are connected with minimal total priority cost across the entire docket.',
+    description: 'Constructs minimum-cost dependency clusters across related cases by building a minimum spanning tree of the judicial docket. Greedily connects cases with minimal inter-dependencies, enabling joint bench allocation and coordinated hearing schedules.',
     complexities: [
       { label: 'BEST', value: 'Omega(V log V)', color: 'emerald' },
       { label: 'AVERAGE', value: 'Theta(V log V + E)', color: 'amber' },
